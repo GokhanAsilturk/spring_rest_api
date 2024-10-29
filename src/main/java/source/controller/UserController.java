@@ -126,12 +126,12 @@ public class UserController {
     @PostMapping(value = "/{id}/orders/verification",
             consumes = MediaType.APPLICATION_PDF_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<VerificationResponse> verifyUserOrders(
+    public ResponseEntity<ReconciliationResponse> verifyUserOrders(
             @PathVariable Long id,
             @RequestBody byte[] ordersPdf) {
         log.info("Verifying orders for user with id: {}", id);
         boolean result = userService.verifyUserOrders(id, ordersPdf);
-        VerificationResponse response = new VerificationResponse(
+        ReconciliationResponse response = new ReconciliationResponse(
                 result,
                 result ? "Doğrulama başarılı" : "Doğrulama başarısız"
         );
