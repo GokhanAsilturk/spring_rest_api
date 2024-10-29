@@ -2,7 +2,6 @@ package source.controller;
 
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,14 +29,10 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
-    private final UserControllerFallback fallbackHandler = new UserControllerFallback();
-
 
     @Operation(summary = "Tüm kullanıcıları listeler")
-    @ApiResponse(responseCode = "200", description = "Kullanıcılar başarıyla listelendi")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
     @PreAuthorize("hasRole('ADMIN')")
-    @RateLimiter(name = "userApi", fallbackMethod = "getAllUsersFallback")
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<List<UserDto>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -46,77 +41,39 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllUsers(page, size));
     }
 
-    public ResponseEntity<List<UserDto>> getAllUsersFallback(int page, int size, Exception ex) {
-        log.warn("Rate limit exceeded for getAllUsers. Page: {}, Size: {}", page, size);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
-    }
-
     @Operation(summary = "ID ile kullanıcı bilgilerini getirir")
-    @ApiResponse(responseCode = "200", description = "Kullanıcı bulundu")
-    @ApiResponse(responseCode = "404", description = "Kullanıcı bulunamadı")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
-    @RateLimiter(name = "userApi", fallbackMethod = "getUserByIdFallback")
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UserDto> getUserById(@PathVariable Long id) {
         log.info("Fetching user with id: {}", id);
         return ResponseEntity.ok(userService.getUserById(id));
     }
 
-    public ResponseEntity<UserDto> getUserByIdFallback(Long id, Exception ex) {
-        log.warn("Rate limit exceeded for getUserById. Id: {}", id);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
-    }
-
-    @Operation(summary = "Merchant ID ile kullanıcı bilgilerini getirir")
-    @ApiResponse(responseCode = "200", description = "Kullanıcı bulundu")
-    @ApiResponse(responseCode = "404", description = "Kullanıcı bulunamadı")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
+    @Operation(summary = "Kullanıcının merchant bilgilerini getirir")
     @PreAuthorize("hasRole('ADMIN')")
-    @RateLimiter(name = "userApi", fallbackMethod = "getUserByMerchantIdFallback")
-    @GetMapping(value = "/merchant/{merchantId}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<UserDto> getUserByMerchantId(@PathVariable Long merchantId) {
-        log.info("Fetching user with merchant id: {}", merchantId);
-        return ResponseEntity.ok(userService.getUserByMerchantId(merchantId));
-    }
-
-    public ResponseEntity<UserDto> getUserByMerchantIdFallback(Long merchantId, Exception ex) {
-        log.warn("Rate limit exceeded for getUserByMerchantId. MerchantId: {}", merchantId);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
+    @GetMapping(value = "/{userId}/merchants/{merchantId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<UserDto> getUserMerchant(
+            @PathVariable Long userId,
+            @PathVariable Long merchantId) {
+        log.info("Fetching merchant {} for user {}", merchantId, userId);
+        return ResponseEntity.ok(userService.getUserMerchant(userId, merchantId));
     }
 
     @Operation(summary = "Kullanıcıyı siler")
-    @ApiResponse(responseCode = "204", description = "Kullanıcı başarıyla silindi")
-    @ApiResponse(responseCode = "404", description = "Kullanıcı bulunamadı")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
     @PreAuthorize("hasRole('ADMIN')")
-    @RateLimiter(name = "userApi", fallbackMethod = "deleteUserByIdFallback")
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUserById(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         log.info("Deleting user with id: {}", id);
         userService.deleteUserById(id);
         return ResponseEntity.noContent().build();
     }
 
-    public ResponseEntity<Void> deleteUserByIdFallback(Long id, Exception ex) {
-        log.warn("Rate limit exceeded for deleteUserById. Id: {}", id);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
-    }
-
     @Operation(summary = "Kullanıcı bilgilerini günceller")
-    @ApiResponse(responseCode = "200", description = "Kullanıcı başarıyla güncellendi")
-    @ApiResponse(responseCode = "400", description = "Geçersiz veri")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
     @PreAuthorize("hasRole('ADMIN')")
-    @RateLimiter(name = "userApi", fallbackMethod = "updateUserFallback")
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
     @PutMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UserDto> updateUser(
             @PathVariable Long id,
@@ -125,19 +82,9 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUser(id, updatedUser));
     }
 
-    public ResponseEntity<UserDto> updateUserFallback(Long id, UserDto updatedUser, Exception ex) {
-        log.warn("Rate limit exceeded for updateUser. Id: {}", id);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
-    }
-
     @Operation(summary = "Kullanıcı bilgilerini kısmen günceller")
-    @ApiResponse(responseCode = "200", description = "Kullanıcı başarıyla güncellendi")
-    @ApiResponse(responseCode = "400", description = "Geçersiz veri")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
-    @RateLimiter(name = "userApi", fallbackMethod = "partiallyUpdateUserFallback")
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
     @PatchMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<UserDto> partiallyUpdateUser(
             @PathVariable Long id,
@@ -146,42 +93,24 @@ public class UserController {
         return ResponseEntity.ok(userService.partiallyUpdateUser(id, partialUpdate));
     }
 
-    public ResponseEntity<UserDto> partiallyUpdateUserFallback(Long id, UserDto partialUpdate, Exception ex) {
-        log.warn("Rate limit exceeded for partiallyUpdateUser. Id: {}", id);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
-    }
-
-    @Operation(summary = "Kullanıcıyı pasif yapar")
-    @ApiResponse(responseCode = "200", description = "Kullanıcı başarıyla pasif yapıldı")
-    @ApiResponse(responseCode = "404", description = "Kullanıcı bulunamadı")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
+    @Operation(summary = "Kullanıcının durumunu günceller")
     @PreAuthorize("hasRole('ADMIN')")
-    @RateLimiter(name = "userApi", fallbackMethod = "deactivateUserFallback")
-    @PatchMapping(value = "/{id}/deactivate", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<UserDto> deactivateUser(@PathVariable Long id) {
-        log.info("Deactivating user with id: {}", id);
-        return ResponseEntity.ok(userService.deactivateUser(id));
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
+    @PatchMapping(value = "/{id}/status", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<UserDto> updateUserStatus(
+            @PathVariable Long id,
+            @RequestParam boolean active) {
+        log.info("Updating status for user with id: {}", id);
+        return ResponseEntity.ok(userService.updateUserStatus(id, active));
     }
 
-    public ResponseEntity<UserDto> deactivateUserFallback(Long id, Exception ex) {
-        log.warn("Rate limit exceeded for deactivateUser. Id: {}", id);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
-    }
-
-    @Operation(summary = "Kullanıcı ödemelerini PDF olarak indirir")
-    @ApiResponse(responseCode = "200", description = "PDF başarıyla oluşturuldu")
-    @ApiResponse(responseCode = "404", description = "Kullanıcı veya ödemeler bulunamadı")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
+    @Operation(summary = "Kullanıcı ödemelerini PDF olarak alır")
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
-    @RateLimiter(name = "userApi", fallbackMethod = "downloadUserPaymentsFallback")
-    @GetMapping(value = "/{id}/payments/download", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<Resource> downloadUserPayments(@PathVariable Long id) {
-        log.info("Downloading payments for user with id: {}", id);
-        byte[] fileData = userService.downloadUserPayments(id);
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
+    @GetMapping(value = "/{id}/payments", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<Resource> getUserPaymentsPdf(@PathVariable Long id) {
+        log.info("Getting payments PDF for user with id: {}", id);
+        byte[] fileData = userService.getUserPaymentsPdf(id);
         ByteArrayResource resource = new ByteArrayResource(fileData);
 
         return ResponseEntity.ok()
@@ -191,37 +120,26 @@ public class UserController {
                 .body(resource);
     }
 
-    public ResponseEntity<Resource> downloadUserPaymentsFallback(Long id, Exception ex) {
-        log.warn("Rate limit exceeded for downloadUserPayments. Id: {}", id);
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header("Retry-After", "60")
-                .build();
-    }
-
-    @Operation(summary = "Kullanıcı siparişlerinin mutabakatını yapar")
-    @ApiResponse(responseCode = "200", description = "Mutabakat başarılı")
-    @ApiResponse(responseCode = "400", description = "Geçersiz PDF")
-    @ApiResponse(responseCode = "404", description = "Kullanıcı bulunamadı")
-    @ApiResponse(responseCode = "429", description = "Çok fazla istek yapıldı")
+    @Operation(summary = "Kullanıcı siparişlerinin mutabakatını kontrol eder")
     @PreAuthorize("hasRole('ADMIN')")
-    @RateLimiter(name = "userApi", fallbackMethod = "reconcileUserOrdersFallback")
-    @PostMapping(value = "/{id}/orders/reconciliation",
+    @RateLimiter(name = "userApi", fallbackMethod = "rateLimitFallback")
+    @PostMapping(value = "/{id}/orders/verification",
             consumes = MediaType.APPLICATION_PDF_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ReconciliationResponse> reconcileUserOrders(
+    public ResponseEntity<VerificationResponse> verifyUserOrders(
             @PathVariable Long id,
-            @RequestBody byte[] uploadedPdf) {
-        log.info("Reconciling orders for user with id: {}", id);
-        boolean result = userService.reconcileUserOrders(id, uploadedPdf);
-        ReconciliationResponse response = new ReconciliationResponse(
+            @RequestBody byte[] ordersPdf) {
+        log.info("Verifying orders for user with id: {}", id);
+        boolean result = userService.verifyUserOrders(id, ordersPdf);
+        VerificationResponse response = new VerificationResponse(
                 result,
-                result ? "Mutabakat başarılı" : "Mutabakat başarısız"
+                result ? "Doğrulama başarılı" : "Doğrulama başarısız"
         );
         return ResponseEntity.ok(response);
     }
 
-    public ResponseEntity<ReconciliationResponse> reconcileUserOrdersFallback(Long id, byte[] uploadedPdf, Exception ex) {
-        log.warn("Rate limit exceeded for reconcileUserOrders. Id: {}", id);
+    private <T> ResponseEntity<T> rateLimitFallback(Exception ex) {
+        log.warn("Rate limit exceeded for request");
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", "60")
                 .build();
