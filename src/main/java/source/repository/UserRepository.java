@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByMerchantId(Long merchantId);
+    Optional<User> findByIdAndMerchantId(Long id, Long merchantId);
+
 }
 
